@@ -1,61 +1,34 @@
-# PropPulse Phase 5 Development Tasks
+# PropPulse CI/CD and Progress Tracking Implementation
 
-## Project Setup
-- [x] Clarify requirements with the user
-- [x] Create feature branch (feat/dev-portal)
-- [ ] Scaffold Next.js/Tailwind DevConsole
-- [ ] Implement Magic.Link OAuth
-- [ ] Set up role-based access control
+## Tasks
 
-## DevConsole MVP
-- [ ] Create base layout and navigation
-- [ ] Implement welcome wizard
-- [ ] Add developer profile fields
-- [ ] Set up role-based permissions
-- [ ] Add Google OAuth feature flag
+### Analysis and Planning
+- [x] Analyze existing repository and CI/CD files
+- [x] Document existing workflow coverage and gaps
 
-## DataUploadService
-- [ ] Build drag-and-drop upload zone
-- [ ] Implement file validation rules
-- [ ] Create chunked upload functionality
-- [ ] Integrate with DataIngestor
-- [ ] Implement column mapping with GPT-4o
-- [ ] Store and display upload errors
+### GitHub Actions Workflows
+- [x] Design GitHub Actions workflows to fill gaps
+- [x] Implement or update CI workflow
+- [x] Implement or update CD workflow
+- [x] Validate GitHub Actions with sample run
 
-## PricingPlan & Stripe
-- [ ] Create pricing plan models and UI
-- [ ] Implement Stripe checkout
-- [ ] Set up webhook for plan updates
-- [ ] Implement trial period logic
-- [ ] Add overage calculation
+### GitHub Projects Automation
+- [x] Create or update GitHub Project "PropPulse Roadmap"
+- [x] Implement GitHub Projects automation script
+- [x] Test GitHub Projects automation
 
-## Live Sync Webhooks
-- [ ] Create webhook endpoint for inventory updates
-- [ ] Implement signature validation
-- [ ] Build database upsert logic
-- [ ] Add Pinecone embedding refresh
+### README Badges and Insights
+- [x] Add README badges for build status, test coverage, deployment status
+- [x] Implement GitHub Projects status badge
+- [x] Validate badges rendering on README
 
-## AI-Collateral Generator
-- [ ] Implement MarketingAssetAgent
-- [ ] Integrate OpenAI Vision and DALL-E 3
-- [ ] Add regeneration limits
-- [ ] Create approval workflow
-- [ ] Set up S3 storage for assets
+### Progress Reporting
+- [x] Review existing weekly progress report action
+- [x] Generate sample progress report
 
-## Analytics & Dashboard
-- [ ] Build analytics dashboard
-- [ ] Implement KPI charts and metrics
-- [ ] Create PDF export functionality
-- [ ] Set up weekly email reports
-- [ ] Add GDPR data purge request
-
-## CRM Integration
-- [ ] Implement Zoho CRM push
-- [ ] Set up "Fresh Stock" pipeline integration
-- [ ] Add sales squad routing logic
-
-## Testing & Deployment
-- [ ] Maintain ≥90% pytest coverage
-- [ ] Implement end-to-end tests
-- [ ] Create deployment documentation
-- [ ] Prepare final report
+### Finalization
+- [ ] Review and optimize workflow runtime
+- [ ] Ensure secrets management and security
+- [ ] Verify all components against requirements
+- [ ] Prepare CI/CD testing instructions
+- [ ] Report and send all files to user

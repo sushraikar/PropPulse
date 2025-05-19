@@ -1,0 +1,54 @@
+name: Setup GitHub Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Project name'
+        required: true
+        default: 'PropPulse Roadmap'
+        type: string
+
+jobs:
+  setup-project:
+    name: Create and Configure GitHub Project
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+      
+      - name: Create GitHub Project
+        id: create-project
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+        run: |
+          python ./scripts/create_github_project.py
+      
+      - name: Save Project Number to GitHub Environment
+        run: |
+          echo "PROJECT_NUMBER=${{ steps.create-project.outputs.project_number }}" >> $GITHUB_ENV
+      
+      - name: Update Repository Secrets
+        uses: gliech/create-github-secret-action@v1
+        with:
+          name: PROJECT_NUMBER
+          value: ${{ env.PROJECT_NUMBER }}
+          pa_token: ${{ secrets.REPO_ADMIN_TOKEN }}
+      
+      - name: Output Project Information
+        run: |
+          echo "Project created successfully!"
+          echo "Project ID: ${{ steps.create-project.outputs.project_id }}"
+          echo "Project Number: ${{ env.PROJECT_NUMBER }}"

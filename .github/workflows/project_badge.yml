@@ -1,0 +1,45 @@
+name: GitHub Projects Status Badge
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows: [PropPulse CI, PropPulse CD]
+    types:
+      - completed
+
+jobs:
+  update-badge:
+    name: Update Project Completion Badge
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+      
+      - name: Generate project badge
+        id: badge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ secrets.PROJECT_NUMBER }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GIST_ID: ${{ secrets.PROJECT_GIST_ID }}
+          GIST_TOKEN: ${{ secrets.GIST_SECRET }}
+        run: |
+          python ./scripts/project_badge.py
+      
+      - name: Output badge information
+        run: |
+          echo "Project completion: ${{ steps.badge.outputs.percentage }}% (${{ steps.badge.outputs.done_items }}/${{ steps.badge.outputs.total_items }})"

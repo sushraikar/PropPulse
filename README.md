@@ -1,5 +1,11 @@
 # PropPulse
 
+![Build Status](https://github.com/actions/workflows/ci.yml/badge.svg)
+![Test Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/gist_user/gist_id/raw/proppulse-coverage.json)
+![Deploy Status](https://github.com/actions/workflows/cd.yml/badge.svg)
+![Risk Engine Green Rate](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/gist_user/gist_id/raw/proppulse-risk-engine.json)
+![Tasks Done](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/gist_user/gist_id/raw/proppulse-completion.json)
+
 PropPulse is an end-to-end platform that generates personalized real estate investment proposals based on property brochures and developer price sheets. The platform uses an Agentic RAG pipeline to analyze documents and generate investment proposals with detailed ROI calculations.
 
 ## Features
@@ -99,6 +105,10 @@ PropPulse/
   - Data encryption at rest
   - Log Analytics + Defender for Cloud
   - ISO 27001 & UAE NESA compliance
+
+## Project Roadmap
+
+View our [GitHub Project](https://github.com/orgs/yourusername/projects/1) for the latest development roadmap and progress.
 
 ## Getting Started
 

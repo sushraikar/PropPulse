@@ -1,0 +1,137 @@
+name: PropPulse CD
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  
+  workflow_dispatch:
+    inputs:
+      deploy_env:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/proppulse
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  
+  deploy:
+    name: Deploy to Azure
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: ${{ github.event.inputs.deploy_env || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Set deployment variables
+        id: vars
+        run: |
+          if [[ "${{ github.event.inputs.deploy_env }}" == "prod" ]]; then
+            echo "env_suffix=prod" >> $GITHUB_OUTPUT
+            echo "location=westeurope" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.deploy_env }}" == "staging" ]]; then
+            echo "env_suffix=staging" >> $GITHUB_OUTPUT
+            echo "location=westeurope" >> $GITHUB_OUTPUT
+          else
+            echo "env_suffix=dev" >> $GITHUB_OUTPUT
+            echo "location=westeurope" >> $GITHUB_OUTPUT
+          fi
+          echo "image_tag=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      
+      - name: Deploy to Azure Container Apps
+        id: deploy
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: rg-proppulse-${{ steps.vars.outputs.env_suffix }}
+          template: ./infra/azure_app.bicep
+          parameters: >
+            environmentName=${{ steps.vars.outputs.env_suffix }}
+            location=${{ steps.vars.outputs.location }}
+            containerImage=ghcr.io/${{ github.repository_owner }}/proppulse:${{ steps.vars.outputs.image_tag }}
+      
+      - name: Generate deployment log
+        run: |
+          echo "Deployment started at $(date)" > deployment-log.txt
+          echo "Environment: ${{ github.event.inputs.deploy_env || 'dev' }}" >> deployment-log.txt
+          echo "Image: ghcr.io/${{ github.repository_owner }}/proppulse:${{ steps.vars.outputs.image_tag }}" >> deployment-log.txt
+          echo "Deployment ID: ${{ steps.deploy.outputs.deploymentId }}" >> deployment-log.txt
+          echo "Resource Group: rg-proppulse-${{ steps.vars.outputs.env_suffix }}" >> deployment-log.txt
+          echo "Status: ${{ steps.deploy.outputs.status }}" >> deployment-log.txt
+          echo "Deployment completed at $(date)" >> deployment-log.txt
+      
+      - name: Upload deployment log
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-log
+          path: deployment-log.txt
+          
+      - name: Generate deployment status badge
+        uses: schneegans/dynamic-badges-action@v1.6.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.DEPLOY_STATUS_GIST_ID }}
+          filename: proppulse-deploy-${{ steps.vars.outputs.env_suffix }}.json
+          label: deploy-${{ steps.vars.outputs.env_suffix }}
+          message: success
+          color: green
+          
+      - name: Update GitHub Projects
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ secrets.PROJECT_NUMBER }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python ./scripts/auto_project.py --event-type pull_request --event-path $GITHUB_EVENT_PATH

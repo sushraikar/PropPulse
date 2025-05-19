@@ -1,0 +1,107 @@
+name: GitHub Projects Webhook Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-webhooks:
+    name: Set up GitHub Projects Webhooks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+      
+      - name: Set up webhooks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<EOF
+          import os
+          import requests
+          
+          # Get environment variables
+          token = os.environ.get("GITHUB_TOKEN")
+          webhook_url = os.environ.get("WEBHOOK_URL")
+          repository = os.environ.get("REPOSITORY")
+          
+          if not token or not webhook_url or not repository:
+              print("Error: Required environment variables not set")
+              exit(1)
+          
+          # API URL
+          api_url = "https://api.github.com"
+          
+          # Headers
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github.v3+json"
+          }
+          
+          # Create repository webhook for issues and pull requests
+          repo_webhook_payload = {
+              "name": "web",
+              "active": True,
+              "events": [
+                  "issues",
+                  "pull_request",
+                  "workflow_run"
+              ],
+              "config": {
+                  "url": webhook_url,
+                  "content_type": "json",
+                  "secret": os.environ.get("WEBHOOK_SECRET", ""),
+                  "insecure_ssl": "0"
+              }
+          }
+          
+          # Create repository webhook
+          repo_webhook_url = f"{api_url}/repos/{repository}/hooks"
+          repo_response = requests.post(repo_webhook_url, headers=headers, json=repo_webhook_payload)
+          
+          if repo_response.status_code == 201:
+              print(f"Repository webhook created successfully: {repo_response.json()['id']}")
+          else:
+              print(f"Error creating repository webhook: {repo_response.status_code} {repo_response.text}")
+          
+          # Get organization name
+          org = repository.split('/')[0]
+          
+          # Create organization webhook for project events
+          org_webhook_payload = {
+              "name": "web",
+              "active": True,
+              "events": [
+                  "project",
+                  "project_card",
+                  "project_column"
+              ],
+              "config": {
+                  "url": webhook_url,
+                  "content_type": "json",
+                  "secret": os.environ.get("WEBHOOK_SECRET", ""),
+                  "insecure_ssl": "0"
+              }
+          }
+          
+          # Create organization webhook
+          org_webhook_url = f"{api_url}/orgs/{org}/hooks"
+          org_response = requests.post(org_webhook_url, headers=headers, json=org_webhook_payload)
+          
+          if org_response.status_code == 201:
+              print(f"Organization webhook created successfully: {org_response.json()['id']}")
+          else:
+              print(f"Error creating organization webhook: {org_response.status_code} {org_response.text}")
+          EOF
