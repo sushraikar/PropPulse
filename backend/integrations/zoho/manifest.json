@@ -1,0 +1,167 @@
+{
+  "manifest_version": "1.0",
+  "name": "PropPulse",
+  "description": "Real estate investment proposal generator with ROI calculations",
+  "version": "1.0.0",
+  "provider": {
+    "name": "PropPulse",
+    "email": "support@proppulse.ai",
+    "website": "https://proppulse.ai"
+  },
+  "host": {
+    "app": "crm",
+    "locale": ["en", "ar", "fr", "hi"]
+  },
+  "scopes": [
+    "ZohoCRM.modules.ALL",
+    "ZohoCRM.settings.ALL"
+  ],
+  "modules": {
+    "widgets": [
+      {
+        "name": "PropPulse Investment Proposals",
+        "location": "detailwidget",
+        "modules": ["Contacts", "Properties"],
+        "url": "https://app.proppulse.ai/zoho/widget",
+        "height": "500px",
+        "visibility": "all"
+      }
+    ],
+    "buttons": [
+      {
+        "name": "Generate Proposal",
+        "location": "detailview",
+        "modules": ["Properties"],
+        "url": "https://app.proppulse.ai/zoho/generate-proposal",
+        "height": "600px",
+        "width": "800px"
+      }
+    ],
+    "fields": [
+      {
+        "module": "Properties",
+        "fields": [
+          {
+            "apiName": "Property_ID",
+            "label": "Property ID",
+            "type": "autonumber"
+          },
+          {
+            "apiName": "Project_Name",
+            "label": "Project Name",
+            "type": "text"
+          },
+          {
+            "apiName": "Developer",
+            "label": "Developer",
+            "type": "lookup",
+            "module": "Accounts"
+          },
+          {
+            "apiName": "Tower_Phase",
+            "label": "Tower/Phase",
+            "type": "picklist"
+          },
+          {
+            "apiName": "Unit_No",
+            "label": "Unit No",
+            "type": "text"
+          },
+          {
+            "apiName": "Unit_Type",
+            "label": "Unit Type",
+            "type": "picklist"
+          },
+          {
+            "apiName": "Size_ft2",
+            "label": "Size (ft²)",
+            "type": "number"
+          },
+          {
+            "apiName": "View",
+            "label": "View",
+            "type": "picklist"
+          },
+          {
+            "apiName": "List_Price_AED",
+            "label": "List Price (AED)",
+            "type": "currency"
+          },
+          {
+            "apiName": "Status",
+            "label": "Status",
+            "type": "picklist",
+            "values": ["Available", "Booked", "Sold"]
+          },
+          {
+            "apiName": "Vector_ID",
+            "label": "Vector ID",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "module": "Proposals",
+        "fields": [
+          {
+            "apiName": "Proposal_ID",
+            "label": "Proposal ID",
+            "type": "autonumber"
+          },
+          {
+            "apiName": "Contact_Name",
+            "label": "Contact Name",
+            "type": "lookup",
+            "module": "Contacts"
+          },
+          {
+            "apiName": "Property_ID",
+            "label": "Property ID",
+            "type": "lookup",
+            "module": "Properties"
+          },
+          {
+            "apiName": "Language",
+            "label": "Language",
+            "type": "picklist",
+            "values": ["English", "Arabic", "French", "Hindi"]
+          },
+          {
+            "apiName": "ROI_JSON",
+            "label": "ROI JSON",
+            "type": "text",
+            "maxLength": 100000
+          },
+          {
+            "apiName": "PDF_Link",
+            "label": "PDF Link",
+            "type": "url"
+          },
+          {
+            "apiName": "Created_On",
+            "label": "Created On",
+            "type": "datetime"
+          }
+        ]
+      }
+    ]
+  },
+  "settings": {
+    "properties": [
+      {
+        "name": "api_domain",
+        "label": "API Domain",
+        "type": "text",
+        "required": true,
+        "default": "https://www.zohoapis.eu"
+      },
+      {
+        "name": "redirect_uri",
+        "label": "Redirect URI",
+        "type": "text",
+        "required": true,
+        "default": "https://auth.proppulse.ai/zoho/callback"
+      }
+    ]
+  }
+}

@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  # Backend API service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: proppulse-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://proppulseadmin:${DB_PASSWORD}@postgres:5432/proppulse
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-gcp-starter}
+      - PINECONE_INDEX=${PINECONE_INDEX:-proppulse}
+      - ZOHO_CLIENT_ID=${ZOHO_CLIENT_ID}
+      - ZOHO_CLIENT_SECRET=${ZOHO_CLIENT_SECRET}
+      - ZOHO_REDIRECT_URI=${ZOHO_REDIRECT_URI:-https://auth.proppulse.ai/zoho/callback}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}
+      - EMAIL_ADDRESS=${EMAIL_ADDRESS}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_NUMBER=${TWILIO_WHATSAPP_NUMBER}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    depends_on:
+      - postgres
+    networks:
+      - proppulse-network
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: proppulse-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - proppulse-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:14-alpine
+    container_name: proppulse-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=proppulseadmin
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=proppulse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - proppulse-network
+
+  # LivePriceWatcher service
+  price-watcher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.watcher
+    container_name: proppulse-price-watcher
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://proppulseadmin:${DB_PASSWORD}@postgres:5432/proppulse
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - ZOHO_CLIENT_ID=${ZOHO_CLIENT_ID}
+      - ZOHO_CLIENT_SECRET=${ZOHO_CLIENT_SECRET}
+      - EMAIL_ADDRESS=${EMAIL_ADDRESS}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - IMAP_SERVER=${IMAP_SERVER:-outlook.office365.com}
+      - MAILBOX=${MAILBOX:-PriceSheets}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - price_watcher_data:/app/data
+    depends_on:
+      - postgres
+      - backend
+    networks:
+      - proppulse-network
+
+  # WhatsApp webhook service
+  whatsapp-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.whatsapp
+    container_name: proppulse-whatsapp
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://proppulseadmin:${DB_PASSWORD}@postgres:5432/proppulse
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - ZOHO_CLIENT_ID=${ZOHO_CLIENT_ID}
+      - ZOHO_CLIENT_SECRET=${ZOHO_CLIENT_SECRET}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_NUMBER=${TWILIO_WHATSAPP_NUMBER}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - whatsapp_data:/app/data
+    depends_on:
+      - postgres
+      - backend
+    networks:
+      - proppulse-network
+
+  # Location Intelligence service
+  location-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.location
+    container_name: proppulse-location
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://proppulseadmin:${DB_PASSWORD}@postgres:5432/proppulse
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - ZOHO_CLIENT_ID=${ZOHO_CLIENT_ID}
+      - ZOHO_CLIENT_SECRET=${ZOHO_CLIENT_SECRET}
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - location_data:/app/data
+    depends_on:
+      - postgres
+      - backend
+    networks:
+      - proppulse-network
+
+  # Nginx for reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: proppulse-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/www:/var/www/html
+    depends_on:
+      - backend
+      - frontend
+      - whatsapp-service
+    networks:
+      - proppulse-network
+
+volumes:
+  postgres_data:
+  backend_data:
+  price_watcher_data:
+  whatsapp_data:
+  location_data:
+
+networks:
+  proppulse-network:
+    driver: bridge

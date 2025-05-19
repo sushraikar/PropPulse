@@ -1,0 +1,220 @@
+name: PropPulse CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort
+        pip install -r backend/requirements.txt
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install Node.js dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Lint Python code
+      run: |
+        flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check backend
+        isort --check-only --profile black backend
+        
+    - name: Lint TypeScript/JavaScript code
+      run: |
+        cd frontend
+        npm run lint
+        
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov pytest-asyncio
+        pip install -r backend/requirements.txt
+        
+    - name: Run Python tests with coverage
+      run: |
+        cd backend
+        pytest --cov=. --cov-report=xml --cov-report=term-missing tests/
+        
+    - name: Verify minimum coverage
+      run: |
+        cd backend
+        coverage report --fail-under=90
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install Node.js dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test -- --coverage
+        
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata for backend
+      id: meta-backend
+      uses: docker/metadata-action@v4
+      with:
+        images: ghcr.io/${{ github.repository }}/backend
+        tags: |
+          type=ref,event=branch
+          type=sha,format=short
+          
+    - name: Build and push backend image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Extract metadata for frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v4
+      with:
+        images: ghcr.io/${{ github.repository }}/frontend
+        tags: |
+          type=ref,event=branch
+          type=sha,format=short
+          
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.4.6
+        
+    - name: Configure Azure credentials
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Terraform Init
+      run: |
+        cd infra
+        terraform init \
+          -backend-config="resource_group_name=${{ secrets.AZURE_BACKEND_RG }}" \
+          -backend-config="storage_account_name=${{ secrets.AZURE_BACKEND_SA }}" \
+          -backend-config="container_name=${{ secrets.AZURE_BACKEND_CONTAINER }}" \
+          -backend-config="key=proppulse-dev.tfstate"
+          
+    - name: Terraform Plan
+      run: |
+        cd infra
+        terraform plan \
+          -var="environment=dev" \
+          -var="location=uaenorth" \
+          -var="backend_image=ghcr.io/${{ github.repository }}/backend:sha-${{ github.sha }}" \
+          -var="frontend_image=ghcr.io/${{ github.repository }}/frontend:sha-${{ github.sha }}" \
+          -var="zoho_client_id=${{ secrets.ZOHO_CLIENT_ID }}" \
+          -var="zoho_client_secret=${{ secrets.ZOHO_CLIENT_SECRET }}" \
+          -var="pinecone_api_key=${{ secrets.PINECONE_API_KEY }}" \
+          -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
+          -var="supabase_url=${{ secrets.SUPABASE_URL }}" \
+          -var="supabase_key=${{ secrets.SUPABASE_KEY }}" \
+          -out=tfplan
+          
+    - name: Terraform Apply
+      run: |
+        cd infra
+        terraform apply -auto-approve tfplan
+        
+    - name: Get Deployment URL
+      id: get-url
+      run: |
+        cd infra
+        echo "::set-output name=url::$(terraform output -raw app_url)"
+        
+    - name: Post Deployment Status
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const url = '${{ steps.get-url.outputs.url }}';
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `✅ Development deployment successful! App available at: ${url}`
+          })
